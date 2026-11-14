@@ -1,119 +1,19 @@
-Wampy
-=====
+# Wampy M2 Latency2 for the Sony NW-A55
 
-Interface addon for NW-A50 / ZX300 / WM1A / WM1Z series WALKMAN® players.
+An unofficial source-available fork of [unknown321/wampy v1.14.6](https://github.com/unknown321/wampy/tree/v1.14.6) for testing HOLD and display resume on the Sony NW-A55. Wampy is an interface add-on for Walkman players. See the [original upstream README](UPSTREAM_README.md) for the original project.
 
-Also works on Walkman One for [NW-A50][1] / [A40][2] / [A30][3] / [ZX300][4] / [WM1A/Z][5].
+Latency2 restores the IdentityFix1 client and matching Qt/EGLFS handoff after Latency1 introduced a first-entry regression. It retains the conservative handoff timing used by IdentityFix1. The Sony interface can briefly appear during wake. Reports of faster wake on the tested unit were subjective and have no measured timing.
 
-[1]: https://www.mrwalkman.com/p/sony-nw-a50series-custom-firmware.html
+| Hardware and software | Evidence |
+| --- | --- |
+| Mainland China Sony NW-A55, Walkman One 23.09, Wampy v1.14.6 base | The owner reported successful use of the private Latency2 build. See the [test report](docs/latency2/TEST_REPORT.md) for the scope of the observation. |
+| Other NW-A55 regional variants, stock firmware, other Walkman One releases, and every other model | Unverified for this fork. |
 
-[2]: https://www.mrwalkman.com/p/walkman-one-for-nw-a40series.html
+This pre-release provides source and patches. The GitHub source ZIP and the patch archive are developer inputs. Flashing a locally prepared update can cause boot failure or data loss. Review the [installation guide](docs/latency2/INSTALL.md) and [recovery guide](docs/latency2/RECOVERY.md) before any device work.
 
-[3]: https://www.mrwalkman.com/p/walkman-one-nw-a30series.html
+- [Changes and version provenance](CHANGELOG.md)
+- [Local build and host testing](docs/latency2/BUILD.md)
+- [Licensing and redistribution scope](docs/latency2/REDISTRIBUTION.md)
+- [Proposed upstream PR](docs/latency2/UPSTREAM_PR.md)
 
-[4]: https://www.mrwalkman.com/p/walkman-one-zx300series.html
-
-[5]: https://www.mrwalkman.com/p/walkman-one-for-wm1az.html
-
-<img src="images/promo-github-dark-bg.png">
-
-## Features:
-
-- Winamp 2 skin support
-- Custom cassette skins
-- On-the-fly skin change
-- Volume table editor
-- Per-song audio options
-- All audio filters are available (EQ 6/10 band, EQ Tone etc.)
-- Standard interface enhancements (clock and cover art size)
-- Digital clock skin (pretty!)
-- [Low latency USB DAC module](https://github.com/zhangboyang/llusbdac)
-- FM radio on devices with FM chip and Walkman One (A40/50 only); FM recording
-- Region-free ATRAC support
-
-See [USAGE.md](./USAGE.md).
-
-## Device support
-
-| Device\firmware | Stock | WalkmanOne | Notes                                                    |
-|-----------------|-------|------------|----------------------------------------------------------|
-| NW-A50          | ✅     | ✅          |                                                          |
-| └──A50Z mod     | ✅     |            | mod is unavailable                                       |
-| NW-A40          | ❌     | ✅          | stock fw is broken, outdated GPU driver; use Walkman One |
-| └──[A50 mod][6] | ✅     |            | confirmed by community                                   |
-| NW-A30          | ❌     | ✅          | stock fw is broken, outdated GPU driver; use Walkman One |
-| NW-ZX300        | ✅     | ✅          |                                                          |
-| NW-WM1A         | ✅     | ✅          | UI doesn't fill the screen                               |
-| NW-WM1Z         | ✅     | ✅          | UI doesn't fill the screen                               |
-| DMP-Z1          | ?     |            | looking for the bravest tester of them all               |
-
-[6]: https://www.mrwalkman.com/p/nw-a40-stock-update.html
-
-[7]: https://github.com/unknown321/wampy/issues/12
-
-[8]: https://github.com/unknown321/wampy/issues/13
-
-## Install
-
-### Pre-install
-
-You should read [USAGE.md](./USAGE.md) beforehand to get acquainted with quirks and bugs.
-
-Check [Device support](#device-support) table (the one above), find your device and currently installed firmware. Make
-sure you have at least 100MB free on internal storage.
-
-### Windows
-
-Download exe from [releases](https://github.com/unknown321/wampy/releases/latest), run and follow instructions. Make
-sure that your internal storage is named "WALKMAN":
-
-<img src="images/explorer.png">
-
-Device will restart twice during installation.
-
-### Linux/OSX
-
-See [INSTALL.md](./INSTALL.md)
-
-### Post-install
-
-Toggle Hold switch to start Wampy after device fully loads (post "creating database" progressbar).
-
-## Upgrade
-
-Just install new version, no need to uninstall previous version.
-
-## Uninstall
-
-Run installer, select "Uninstall" action, follow instructions.
-
-## Build from source
-
-See [BUILD.md](./BUILD.md)
-
-## Other projects for these DAPs
-
-[fix-coverart](https://github.com/unknown321/fix-coverart) - fixes missing cover art.
-
-[Scrobbler](https://github.com/unknown321/scrobbler) - keeps tracks of played songs in .scrobbler.log for further
-submission to Last.fm.
-
-[tpp-wampy](https://github.com/unknown321/tpp-wampy) - MGSV:TPP cassette skin
-
-## Development stories
-
-[Making of](./MAKING_OF.md)
-
-[Making of volume tables](./MAKING_OF_VOLUME_TABLES.md)
-
-[Making of equalizer per song](./MAKING_OF_EQUALIZER_PER_SONG.md)
-
-[Making of equalizer / audio filters](./MAKING_OF_EQUALIZER_FILTERS.md)
-
-[Making of FM radio](./MAKING_OF_FM.md)
-
-[Making of visualizer](./MAKING_OF_VIS.md)
-
-## Support me
-
-https://boosty.to/unknown321/donate
+The upstream [LICENSE](LICENSE) is retained verbatim. Wampy is distributed by its upstream author under GNU GPLv3 with the Commons Clause condition. Component-specific notices remain in the source and applicable dependencies. Sony, Walkman, and Walkman One identify the target platform. This project is unofficial.

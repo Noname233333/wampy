@@ -1,3 +1,4 @@
+#include "socket.h"
 #include "command.pb.h"
 #include "command_names.h"
 #include <cstdio>
@@ -90,57 +91,14 @@ namespace Hagoromo {
     };
 
     void HagoromoConnector::sendData(char *data, size_t len, std::string *res) {
-        int server_socket;
-        struct sockaddr_un server_addr{};
-        int connection_result;
-
-        server_socket = socket(AF_UNIX, SOCK_STREAM, 0);
-
-        server_addr.sun_family = AF_UNIX;
-        strcpy(server_addr.sun_path, WAMPY_SOCKET);
-
-        connection_result = connect(server_socket, (struct sockaddr *)&server_addr, sizeof(server_addr));
-
-        if (connection_result == -1) {
-            perror("failed to connect\n");
-            return;
+        if (!exchange(WAMPY_SOCKET, data, len, res, CommandTimeoutMs)) {
+            res->clear();
+            DLOG("command timed out or socket failed\n");
         }
-
-        ssize_t sent = send(server_socket, data, len, MSG_NOSIGNAL);
-        if (sent < 0) {
-            perror("send failed\n");
-            return;
-        }
-
-        //        DLOG("sent %d bytes\n", sent);
-
-        while (true) {
-            char buf[1024];
-            auto count = read(server_socket, buf, sizeof buf);
-
-            if (count < 0) {
-                perror("read failed\n");
-                return;
-            }
-
-            if (count == 0) {
-                break;
-            }
-            //            DLOG("read %d bytes\n", count);
-            for (int i = 0; i < count; i++) {
-                *res += buf[i];
-            }
-        }
-
-        //        for (auto c: *res) {
-        //            printf("0x%02x ", c);
-        //        }
-        //        printf("\n");
-
-        close(server_socket);
     }
 
     bool HagoromoConnector::sendCMD(Command::Command *c) {
+        const auto type = c->type();
         c->set_code(Command::FAIL);
         auto s = c->SerializeAsString();
         char data[s.length()];
@@ -149,8 +107,11 @@ namespace Hagoromo {
 
         sendData(data, s.length(), &res);
 
-        if (!c->ParseFromString(res)) {
-            DLOG("parsing failed\n");
+        if (!c->ParseFromString(res) || c->type() != type) {
+            c->Clear();
+            c->set_type(type);
+            c->set_code(Command::FAIL);
+            DLOG("invalid command response\n");
             return false;
         }
 

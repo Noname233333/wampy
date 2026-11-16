@@ -570,7 +570,42 @@ void Skin::Draw() {
     }
 }
 
+void Skin::ApplyUserSelection(bool entering) {
+    connector->ApplyUserSelection(entering);
+    if (entering) {
+        RefreshWinampSkinList();
+        RefreshCassetteTapeReelLists();
+        RefreshMasterVolumeTableFiles();
+        RefreshMasterVolumeTableDSDFiles();
+        RefreshToneControlFiles();
+        PreprocessTableFilenames();
+    }
+
+    connector->soundSettings.Update();
+    connector->soundSettingsFw.Update();
+    eqStatus = "Refreshed";
+
+    if (activeSkinVariant == WINAMP) {
+        if (entering) {
+            if (config->winamp.visualizerEnable) {
+                ToggleAudioAnalyzerOn();
+            } else {
+                ToggleAudioAnalyzerOff();
+            }
+        } else {
+            if (config->winamp.visualizerEnable) {
+                ToggleAudioAnalyzerOff();
+            } else {
+                ToggleAudioAnalyzerOn();
+            }
+        }
+    }
+
+    ImGui::GetIO().AddMousePosEvent(0.0f, 0.0f);
+}
+
 void Skin::KeyHandler() {
+#ifdef DESKTOP
     if (*hold_toggled) {
         *hold_toggled = false;
 
@@ -579,48 +614,13 @@ void Skin::KeyHandler() {
             action = Hide;
         }
 
-        DLOG("hold toggled, value %d, render %d, action %d\n", *hold_value, *render, action);
+        DLOG("hold toggled, value %d, render %d, action %d\n", *hold_value, render->load(), action);
         connector->ToggleHgrm(action, render);
 
-        if (action == Hide) {
-            RefreshWinampSkinList();
-            RefreshCassetteTapeReelLists();
-            RefreshMasterVolumeTableFiles();
-            RefreshMasterVolumeTableDSDFiles();
-            RefreshToneControlFiles();
-            PreprocessTableFilenames();
-        }
-
-        connector->soundSettings.Update();
-        connector->soundSettingsFw.Update();
-        eqStatus = "Refreshed";
-
-        if (activeSkinVariant == WINAMP) {
-            if (action == Hide) {
-                if (config->winamp.visualizerEnable) {
-                    ToggleAudioAnalyzerOn();
-                } else {
-                    ToggleAudioAnalyzerOff();
-                }
-            } else {
-                if (config->winamp.visualizerEnable) {
-                    ToggleAudioAnalyzerOff();
-                } else {
-                    ToggleAudioAnalyzerOn();
-                }
-            }
-        }
-
-        ImGui::GetIO().AddMousePosEvent(0.0f, 0.0f);
+        ApplyUserSelection(action == Hide);
     }
 
-    if (*power_pressed) {
-        *power_pressed = false;
-
-        if (*render) {
-            *render = false;
-        }
-    }
+#endif
 
     if ((config->disableKeysWhenPowerOff) && (!connector->power)) {
         return;

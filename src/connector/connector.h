@@ -1,6 +1,8 @@
 #ifndef WAMPY_CONNECTOR_H
 #define WAMPY_CONNECTOR_H
 
+#include "../render.h"
+
 #include "../INotifiable.h"
 #include "../playlist.h"
 #include "../sound_settings/sound_settings.h"
@@ -10,6 +12,7 @@
 #include "song.h"
 #include "sound_service_fw.h"
 #include <cmath>
+#include <atomic>
 #include <mutex>
 #include <vector>
 
@@ -84,10 +87,10 @@ struct Connector {
     const char *address{};
     std::vector<Song> playlist{};
     Status status{};
-    bool *render{};
-    bool power = true;
+    RenderGate *render{};
+    std::atomic<bool> power{true}; // UI writer; FM volume worker reads this.
     bool updateVolume{};
-    bool storagePresent{};
+    std::atomic<bool> storagePresent{false};
     // it takes ~2 status calls to update current track position on hagoromo side
     // without this delay seek button will violently jump to previous position
     unsigned int updateElapsedCounter{};
@@ -187,11 +190,12 @@ struct Connector {
         p->NextTrack();
     }
 
-    virtual void ToggleHgrm(HgrmToggleAction action, bool *render) = 0;
+    virtual void ApplyUserSelection(bool) {}
+
+    virtual void ToggleHgrm(HgrmToggleAction action, RenderGate *render) = 0;
 
     virtual void volumeLoop() = 0;
 
-    virtual void powerLoop(bool *render, bool *power) = 0;
 
     virtual void TestCommand() = 0;
 

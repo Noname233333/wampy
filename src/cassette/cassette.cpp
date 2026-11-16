@@ -144,8 +144,8 @@ namespace Cassette {
                 break;
             }
 
-            if (!*render) {
-                continue;
+            if (!render->waitUntilVisible(childThreadsStop)) {
+                break;
             }
 
             if (loading) {
@@ -333,6 +333,12 @@ namespace Cassette {
 
     void Cassette::Unload() {
         childThreadsStop = true;
+        if (render)
+            render->notify();
+        if (reelWorker.joinable())
+            reelWorker.join();
+        if (updateWorker.joinable())
+            updateWorker.join();
 
         ActiveReel = nullptr;
         ActiveTape = nullptr;
@@ -360,9 +366,6 @@ namespace Cassette {
 
         ReelsAtlas.clear();
 
-        while (updateThreadRunning || reelThreadRunning) {
-            // wait for threads to stop
-        }
 
         memset(previousTrack, 0, FIELD_SIZE);
         memset(artist, 0, FIELD_SIZE);
@@ -561,12 +564,10 @@ namespace Cassette {
 
         childThreadsStop = false;
         auto exec = [this]() { ReelLoop(); };
-        std::thread t(exec);
-        t.detach();
+        reelWorker = std::thread(exec);
 
         auto update = [this]() { processUpdate(); };
-        std::thread v(update);
-        v.detach();
+        updateWorker = std::thread(update);
 
         return 0;
     }
@@ -1046,8 +1047,8 @@ namespace Cassette {
                 continue;
             }
 
-            if (!*render) {
-                continue;
+            if (!render->waitUntilVisible(childThreadsStop)) {
+                break;
             }
 
             if (loading) {

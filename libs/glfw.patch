@@ -27,6 +27,24 @@ index 79b06288..910fc394 100644
  /*! @} */
  
  /*! @defgroup mods Modifier key flags
+diff --git a/src/egl_context.c b/src/egl_context.c
+index 517c64cb..979369e5 100644
+--- a/src/egl_context.c
++++ b/src/egl_context.c
+@@ -290,7 +290,12 @@ static void swapBuffersEGL(_GLFWwindow* window)
+     }
+ #endif
+ 
+-    eglSwapBuffers(_glfw.egl.display, window->context.egl.surface);
++    if (!eglSwapBuffers(_glfw.egl.display, window->context.egl.surface))
++    {
++        const EGLint error = eglGetError();
++        _glfwInputError(GLFW_PLATFORM_ERROR, "EGL: SwapBuffers failed (0x%04x): %s",
++                        error, getEGLErrorString(error));
++    }
+ }
+ 
+ static void swapIntervalEGL(int interval)
 diff --git a/src/init.c b/src/init.c
 index dbd5a900..9561c552 100644
 --- a/src/init.c
@@ -280,7 +298,7 @@ index a9b528f0..681df56f 100644
  }
  
 diff --git a/src/null_window.c b/src/null_window.c
-index f0e1dcc9..420fffcc 100644
+index f0e1dcc9..0823c3eb 100644
 --- a/src/null_window.c
 +++ b/src/null_window.c
 @@ -30,6 +30,16 @@
@@ -300,7 +318,7 @@ index f0e1dcc9..420fffcc 100644
  static void applySizeLimits(_GLFWwindow* window, int* width, int* height)
  {
      if (window->numer != GLFW_DONT_CARE && window->denom != GLFW_DONT_CARE)
-@@ -485,16 +495,215 @@ GLFWbool _glfwWindowVisibleNull(_GLFWwindow* window)
+@@ -485,16 +495,224 @@ GLFWbool _glfwWindowVisibleNull(_GLFWwindow* window)
      return window->null.visible;
  }
  
@@ -495,6 +513,15 @@ index f0e1dcc9..420fffcc 100644
 +                handleKeyEvent(event->code, event->value);
 +        }
 +    }
++}
++
++void wampyWaitInput(int displayFd)
++{
++    struct pollfd inputs[] = {{_glfw.keyboard.fdPower, POLLIN, 0},
++                             {_glfw.keyboard.fd, POLLIN, 0},
++                             {_glfw.touchscreen.fd, POLLIN, 0},
++                             {displayFd, POLLIN, 0}};
++    poll(inputs, 4, -1);
  }
  
  void _glfwWaitEventsNull(void)

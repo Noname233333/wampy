@@ -27,11 +27,14 @@
 #include "langToString/langToString.h"
 #include "mkpath.h"
 #include "wampy.h"
+#include "backlight.h"
+#include "connector/socket.h"
 
 #include <libintl.h>
 
 #ifndef DESKTOP
 extern "C" int wampyInputWasReset(void);
+extern "C" void wampyWaitInput(int displayFd);
 #endif
 
 #define IMGUI_WIDTH 800.0f
@@ -53,7 +56,11 @@ std::string dumpDir = "/contents/wampy/log";
 
 #define TARGET_FPS 24
 
-static void glfw_error_callback(int error, const char *description) { DLOG("Glfw Error %d: %s\n", error, description); }
+static bool graphicsFailure = false;
+static void glfw_error_callback(int error, const char *description) {
+    graphicsFailure = true;
+    DLOG("Glfw Error %d: %s\n", error, description);
+}
 
 void drawCallback(const ImDrawList *dl, const ImDrawCmd *cmd) {
     //    printf("cliprect %f %f %f %f\n", cmd->ClipRect.x, cmd->ClipRect.y, cmd->ClipRect.z, cmd->ClipRect.w);
@@ -187,32 +194,31 @@ GLFWwindow *CreateWindow() {
 #define ACTION_PRESS 1
 
 #ifdef DESKTOP
-bool render = true;
+RenderGate render{true};
 #else
-bool render = false;
+RenderGate render{false};
 #endif
 bool hold_toggled = false;
 bool power_pressed = false;
 int hold_value = ACTION_RELEASE;
+std::vector<int> sleepingKeys;
 struct timespec tw = {0, 300000000};
 
 void key_callback(GLFWwindow *window, int key, int scancode, int action, int mods) {
-    if (key == GLFW_KEY_HOLD) {
+    if (key == GLFW_KEY_HOLD && action != GLFW_REPEAT && action != hold_value) {
         hold_toggled = true;
         hold_value = action;
-        if (action == ACTION_PRESS) {
-            render = true;
-        } else {
-            render = false;
-        }
+#ifdef DESKTOP
+        render = action == ACTION_PRESS;
+#endif
     }
-
-    if (key == GLFW_KEY_POWER) {
-        if (action == ACTION_RELEASE) {
-            DLOG("power press\n");
-            power_pressed = true;
-        }
-    }
+    if (key == GLFW_KEY_POWER && action == ACTION_RELEASE)
+        power_pressed = true;
+    // POWER invalidates ownership, but brightness decides whether drawing is allowed.
+#ifndef DESKTOP
+    if (!render && action == ACTION_RELEASE)
+        sleepingKeys.push_back(key);
+#endif
 
     if (render) {
         ImGui_ImplGlfw_KeyCallback(window, key, scancode, action, mods);
@@ -401,7 +407,6 @@ int main(int, char **) {
 #endif
 
     skin.hold_toggled = &hold_toggled;
-    skin.power_pressed = &power_pressed;
     skin.hold_value = &hold_value;
     skin.config = &config;
     skin.windowOffset = &imguiWindowPos;
@@ -500,22 +505,114 @@ int main(int, char **) {
     mkpath("/contents/wampy/sound_settings/tone_control/", 0777);
 #endif
 
+#ifndef DESKTOP
+    graphicsFailure = false;
+    Backlight backlight(v->brightnessPath);
+    bool eligibleBefore = false;
+    bool selectionPending = false;
+    bool graphicsHealthy = true;
+    long long nextWindowCheck = 0;
+#endif
     int display_w, display_h;
     auto lastTime = glfwGetTime();
     while (!glfwWindowShouldClose(window)) {
+        bool wasRendering = render;
         glfwPollEvents();
 #ifndef DESKTOP
         if (wampyInputWasReset()) {
             ImGui::GetIO().ClearInputKeys();
             ImGui::GetIO().ClearInputMouse();
+            sleepingKeys.clear();
         }
-#endif
+        bool on = false;
+        bool known = backlight.sample(on);
+        connector->power = known && on;
+        bool eligible = known && on && connector->storagePresent;
+        bool transition = hold_toggled || power_pressed || eligible != eligibleBefore;
+        power_pressed = false;
+        eligibleBefore = eligible;
+        selectionPending = selectionPending || hold_toggled;
+        hold_toggled = false;
+        if (!eligible || transition || graphicsFailure)
+            render = false;
+        if (graphicsFailure)
+            graphicsHealthy = false;
+        if (render && Hagoromo::monotonicMs() >= nextWindowCheck) {
+            render = v->WindowHidden();
+            nextWindowCheck = Hagoromo::monotonicMs() + 1000;
+        }
+        if (wasRendering && !render) {
+            if (known && on && graphicsHealthy && glfwGetCurrentContext() == window)
+                glFinish();
+            ImGui::GetIO().ClearInputKeys();
+            ImGui::GetIO().ClearInputMouse();
+        }
+        if ((eligible && transition) || (wasRendering && !render && known && on)) {
+            bool entering = transition && eligible && graphicsHealthy && hold_value == ACTION_PRESS;
+            v->ToggleHgrm(entering ? Hide : Show, &render);
+            if (selectionPending && (!entering || render)) {
+                skin.ApplyUserSelection(entering);
+                selectionPending = false;
+                // Feature commands may have exposed a native window again.
+                if (render && !v->WindowHidden())
+                    v->ToggleHgrm(Show, &render);
+            }
+            sleepingKeys.clear();
+            continue; // Re-read input/backlight before submitting any GL work.
+        }
+        if (known && !on && hold_value == ACTION_PRESS && !config.disableKeysWhenPowerOff) {
+            for (int key : sleepingKeys) {
+                if (key == GLFW_KEY_PLAY)
+                    connector->Play();
+                if (key == GLFW_KEY_PREV) {
+                    if (config.misc.swapTrackButtons)
+                        connector->NextTrack();
+                    else
+                        connector->PrevTrack();
+                }
+                if (key == GLFW_KEY_NEXT) {
+                    if (config.misc.swapTrackButtons)
+                        connector->PrevTrack();
+                    else
+                        connector->NextTrack();
+                }
+                if (key == GLFW_KEY_VOLUMEUP)
+                    connector->SetVolume(1, true);
+                if (key == GLFW_KEY_VOLUMEDOWN)
+                    connector->SetVolume(-1, true);
+            }
+        }
+        sleepingKeys.clear();
+        if (render)
+            skin.KeyHandler();
+#else
         skin.KeyHandler();
-
+#endif
         if (!render) {
+            lastTime = glfwGetTime();
+#ifndef DESKTOP
+            wampyWaitInput(backlight.fd());
+#else
             nanosleep(&tw, nullptr);
+#endif
             continue;
         }
+#ifndef DESKTOP
+        graphicsFailure = false;
+        glfwMakeContextCurrent(window);
+        if (graphicsFailure || glfwGetCurrentContext() != window || !glGetString(GL_VERSION)) {
+            graphicsFailure = true;
+            continue;
+        }
+#endif
+        // Resource reloads need the same confirmed ownership as drawing.
+        skin.LoadUpdatedSkin();
+#ifndef DESKTOP
+        if (glfwGetCurrentContext() != window || !glGetString(GL_VERSION))
+            graphicsFailure = true;
+        if (!backlight.sample(on) || !on || graphicsFailure)
+            continue;
+#endif
 
         ImGui_ImplOpenGL3_NewFrame();
         ImGui_ImplGlfw_NewFrame();
@@ -551,16 +648,16 @@ int main(int, char **) {
 
         glfwSwapBuffers(window);
 
-        skin.LoadUpdatedSkin();
-
         if (config.limitFPS) {
             // https://github.com/glfw/glfw/issues/1308
-            while (glfwGetTime() < lastTime + (1.0 / TARGET_FPS)) {
-            }
-            lastTime += 1.0 / TARGET_FPS;
+            auto delay = lastTime + (1.0 / TARGET_FPS) - glfwGetTime();
+            if (delay > 0)
+                std::this_thread::sleep_for(std::chrono::duration<double>(delay));
+            lastTime = glfwGetTime();
         }
     }
 
+    render = false;
     ImGui_ImplOpenGL3_Shutdown();
     ImGui_ImplGlfw_Shutdown();
     ImPlot::DestroyContext();

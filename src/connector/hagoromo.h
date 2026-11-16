@@ -24,6 +24,7 @@ namespace Hagoromo {
 
     class HagoromoConnector : public Connector {
       private:
+        uint64_t handoffGeneration = 0;
         std::mutex *m{}; // locks playlist while filtering to prevent double write on duplicate events
 
         void updateSoundSettings();
@@ -76,7 +77,11 @@ namespace Hagoromo {
 
         void TestCommand() override;
 
-        void ToggleHgrm(HgrmToggleAction action, bool *render) override;
+        bool WindowHidden();
+
+        void ApplyUserSelection(bool entering) override;
+
+        void ToggleHgrm(HgrmToggleAction action, RenderGate *render) override;
 
         void Connect() override;
 
@@ -106,7 +111,6 @@ namespace Hagoromo {
 
         void NextTrack() override;
 
-        void powerLoop(bool *render, bool *power) override;
 
         void storageLoop();
 

@@ -21,7 +21,7 @@ class SkinVariant {
     SkinVariant() = default;
 
     Connector *connector{};
-    bool *render{};
+    RenderGate *render{};
     void *skin{};
     std::string loadStatusStr{};
     bool debug = false;

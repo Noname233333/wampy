@@ -1,4 +1,3 @@
-#include "socket.h"
 #include "command.pb.h"
 #include "command_names.h"
 #include <cstdio>
@@ -15,6 +14,7 @@
 #include "../dac/dac.h"
 #include "asoundlib.h"
 #include "hagoromo.h"
+#include "socket.h"
 #include "sqlite3.h"
 #include "util_string.h"
 #include "wampy.h"
@@ -218,101 +218,54 @@ namespace Hagoromo {
         sendCMD(&c);
     }
 
-    void HagoromoConnector::ToggleHgrm(HgrmToggleAction action, bool *render) {
-        auto c = Command::Command();
-        c.set_type(Command::Type::CMD_GET_WINDOW_STATUS);
-        if (!sendCMD(&c)) {
-            DLOG("get window status fail\n");
-            return;
-        }
+    bool HagoromoConnector::WindowHidden() {
+        Command::Command c;
+        c.set_type(Command::CMD_GET_WINDOW_STATUS);
+        if (!sendCMD(&c) || c.code() != Command::OK)
+            return false;
+        const auto &status = c.windowstatus();
+        return status.visible() == Command::VISIBILITY_NO && status.handoff_protocol() == 1 && status.handoff_generation() == handoffGeneration &&
+               status.render_quiescent();
+    }
 
-        if (c.code() != Command::OK) {
-            DLOG("cannot get window status, not ok\n");
-            return;
-        }
-
-        bool visible = false;
-        if (c.windowstatus().visible() == Command::VISIBILITY_YES) {
-            visible = true;
-        }
-
-        Command::WindowVisible expected = Command::VISIBILITY_UNKNOWN;
-        DLOG("visible %d, action %s\n", visible, action == 1 ? "Hide" : "Show");
-        if (!visible && (action == Show)) {
-            DLOG("hgrm status: %d, showing hgrm\n", c.windowstatus().visible());
-            c.set_type(Command::CMD_SHOW_WINDOW);
-            expected = Command::VISIBILITY_YES;
-        }
-
-        if (visible && (action == Hide)) {
-            DLOG("hgrm status: %d, hiding hgrm\n", c.windowstatus().visible());
-            c.set_type(Command::CMD_HIDE_WINDOW);
-            expected = Command::VISIBILITY_NO;
-        }
-
-        if (expected != Command::VISIBILITY_UNKNOWN) {
-            if (!sendCMD(&c)) {
-                DLOG("toggle command send failed\n");
-                return;
-            }
-
-            if (c.code() != Command::OK) {
-                DLOG("toggle command failed\n");
-                *render = true;
-                enableTouchscreen();
-                // It would be nice to add restart button, but touchscreen device doesn't emit inotify events,
-                // unless there is an application reading from it.
-                // You can run `cat /dev/input/event0` in background, but it's not worth it.
-                // Just prompt user to restart.
-                stateString = "No connection, restart device";
-                status.Duration = 0;
-                return;
-            }
-
-            // hide/show command is async, wait for expected status
-            bool ok = false;
-            for (int i = 0; i < 10; i++) {
+    void HagoromoConnector::ToggleHgrm(HgrmToggleAction action, RenderGate *render) {
+        *render = false;
+        if (action == Hide) {
+            ++handoffGeneration;
+            // Keep the conservative spacing used by the working NW-A55 build.
+            // A Hide reply is not enough: a fresh status must confirm GPU drain.
+            for (int attempt = 0; attempt < 3; attempt++) {
+                Command::Command c;
                 c.set_type(Command::CMD_GET_WINDOW_STATUS);
-                sendCMD(&c);
-                if (c.code() == Command::UNKNOWN) {
-                    DLOG("cannot get status\n");
+                if (!sendCMD(&c) || c.code() != Command::OK || c.windowstatus().handoff_protocol() != 1)
+                    break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                c.Clear();
+                c.set_type(Command::CMD_HIDE_WINDOW);
+                auto request = c.mutable_windowstatus();
+                request->set_visible(Command::VISIBILITY_UNKNOWN);
+                request->set_handoff_generation(handoffGeneration);
+                request->set_deadline_monotonic_ms(monotonicMs() + CommandTimeoutMs);
+                if (!sendCMD(&c) || c.code() != Command::OK)
+                    break;
+                std::this_thread::sleep_for(std::chrono::milliseconds(100));
+                if (WindowHidden()) {
                     *render = true;
-                    enableTouchscreen();
-                    stateString = "No connection, restart device";
-                    status.Duration = 0;
                     return;
                 }
-
-                DLOG("hgrm is %d\n", c.windowstatus().visible());
-                if (c.windowstatus().visible() == expected) {
-                    ok = true;
-                    break;
-                }
-
-                std::this_thread::sleep_for(std::chrono::milliseconds(100));
             }
-
-            if (!ok) {
-                DLOG("waited for expected window status, but it took too long\n");
-                return;
-            }
-
-            DLOG("hgrm window status: %d\n", c.windowstatus().visible());
+            DLOG("native handoff failed; leaving rendering disabled\n");
         }
+        // Also restore the top-level QWindow on failure. No retry on every frame.
+        Command::Command c;
+        c.set_type(Command::CMD_SHOW_WINDOW);
+        if (!sendCMD(&c) || c.code() != Command::OK)
+            DLOG("could not restore native window\n");
+    }
 
-        visible = c.windowstatus().visible() == Command::VISIBILITY_YES;
-
-        if (visible) {
-            DLOG("visible\n");
-        } else {
-            DLOG("hidden\n");
-        }
-
+    void HagoromoConnector::ApplyUserSelection(bool entering) {
         stateString = "";
-        if (visible) {
-            *render = false;
-        } else {
-            *render = true;
+        if (entering) {
 
             if (!*touchscreenStaysOFF || status.Volume == 100 || status.VolumeRaw == HAGOROMO_DEFAULT_VOLUME_MAX) {
                 enableTouchscreen();
@@ -920,102 +873,7 @@ namespace Hagoromo {
                 auto event = events[n];
                 if (event.data.fd == procMountsFd) {
                     storagePresent = exists("/contents/MUSIC/");
-                    DLOG("storagePresent: %d\n", storagePresent);
-                }
-            }
-        }
-    }
-
-    void HagoromoConnector::powerLoop(bool *render, bool *power) {
-#ifdef DESKTOP
-        return;
-#endif
-        int fd, poll_num;
-        ssize_t len;
-        const struct inotify_event *event;
-        char buf[4096] __attribute__((aligned(__alignof__(struct inotify_event))));
-        struct pollfd fds[1];
-
-        fd = inotify_init1(IN_NONBLOCK);
-        if (fd == -1) {
-            perror("inotify_init1");
-            exit(EXIT_FAILURE);
-        }
-
-        auto brfd = inotify_add_watch(fd, brightnessPath, IN_CLOSE_WRITE);
-        if (brfd < 0) {
-            perror("inotify_add_watch");
-            exit(EXIT_FAILURE);
-        }
-
-        fds[0].fd = fd; /* Inotify input */
-        fds[0].events = POLLIN;
-
-        while (true) {
-            poll_num = poll(fds, 1, -1);
-            if (poll_num == -1) {
-                if (errno == EINTR)
-                    continue;
-                perror("failed to poll brightness");
-                exit(EXIT_FAILURE);
-            }
-
-            if (poll_num > 0) {
-                if (fds[0].revents & POLLIN) {
-                    /* Inotify events are available. */
-                    memset(buf, 0, sizeof buf);
-
-                    for (;;) {
-                        /* Read some events. */
-                        len = read(fd, buf, sizeof(buf));
-                        if (len == -1 && errno != EAGAIN) {
-                            perror("read");
-                            exit(EXIT_FAILURE);
-                        }
-
-                        /* If the nonblocking read() found no events to read, then
-                           it returns -1 with errno set to EAGAIN. In that case,
-                           we exit the loop. */
-
-                        if (len <= 0)
-                            break;
-
-                        /* Loop over all events in the buffer. */
-
-                        for (char *ptr = buf; ptr < buf + len; ptr += sizeof(struct inotify_event) + event->len) {
-                            event = (const struct inotify_event *)ptr;
-                            if (event->mask & IN_CLOSE_WRITE) {
-                                if (event->wd == brfd) {
-                                    int ff = open(brightnessPath, O_RDONLY);
-                                    if (ff < 0) {
-                                        perror("brightness file");
-                                        exit(EXIT_FAILURE);
-                                    }
-
-                                    char b[1];
-                                    if (read(ff, b, sizeof b) < 0) {
-                                        perror("failed to read inotified changes\n");
-                                        exit(EXIT_FAILURE);
-                                    }
-
-                                    if (b[0] == '0') {
-                                        DLOG("power off\n");
-                                        *power = false;
-                                        if (soundSettings.s->fmStatus.state == 2) {
-                                        }
-                                    } else {
-                                        DLOG("power on\n");
-                                        *power = true;
-                                    }
-
-                                    close(ff);
-                                }
-                            }
-
-                            if (event->len)
-                                DLOG("%s", event->name);
-                        }
-                    }
+                    DLOG("storagePresent: %d\n", storagePresent.load());
                 }
             }
         }
@@ -1027,10 +885,6 @@ namespace Hagoromo {
         auto stor = [this]() { storageLoop(); };
         std::thread storT(stor);
         storT.detach();
-
-        auto pwr = [this]() { powerLoop(render, &power); };
-        std::thread powert(pwr);
-        powert.detach();
 
         auto snd = [this]() { volumeLoop(); };
         std::thread voll(snd);

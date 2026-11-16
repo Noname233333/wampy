@@ -52,7 +52,7 @@ enum EActiveFilterTab {
 #define EFFECT_CHANGE_QUEUE_TEXT gettext("Change enqueued")
 
 struct Skin {
-    bool *render{};
+    RenderGate *render{};
     ImFont *FontRegular{};
     SkinList skinListWinamp{};
     SkinList reelListCassette{};
@@ -73,7 +73,6 @@ struct Skin {
     bool needLoad{};
     bool *hold_toggled = nullptr;
     int *hold_value = nullptr;
-    bool *power_pressed = nullptr;
     int displaySettings = 0;
     SettingsTab displayTab = SettingsTab::SkinOpts;
 
@@ -348,6 +347,8 @@ struct Skin {
     void CurveEditor();
 
     void Draw();
+
+    void ApplyUserSelection(bool entering);
 
     void KeyHandler();
 

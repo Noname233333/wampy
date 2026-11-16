@@ -77,7 +77,11 @@ issue](https://github.com/unknown321/wampy/issues).
 
 ### Wampy is not showing after turning display off and on
 
-Due to technical issues it is not possible to reliably show Wampy after turning screen off and on.
+Upstream v1.14.6 may not show Wampy reliably after the screen is turned off and
+on. This fork includes automatic display recovery when HOLD still selects Wampy
+and the native window handoff succeeds. The earlier M2 Latency2 build was tested
+on a mainland-China Sony NW-A55 with Walkman One 23.09. See the [fork README](./README.md#this-fork-restore-wampy-after-screen-off)
+for the refactored source's validation status.
 
 ### There is no song info
 

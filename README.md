@@ -1,6 +1,28 @@
 Wampy
 =====
 
+## This fork: restore Wampy after screen-off
+
+This fork fixes the screen-off recovery bug addressed by M2 Latency2. When HOLD
+still selects Wampy, the fix preserves the selected Winamp or Cassette skin while
+the screen is off. On wake, it resumes drawing after the Sony player has released
+the display. If the handoff cannot be confirmed, Wampy keeps drawing disabled
+and tries to return to the Sony interface.
+
+The earlier M2 Latency2 build was tested by the owner on a mainland-China
+Sony NW-A55 running Walkman One 23.09. This branch integrates the refactored
+input handling, IPC timeouts, and display recovery on top of v1.14.6. The
+refactored code passed host tests. Its matching ARM client and Sony Qt plugin
+build and physical-device retest are still pending. Other device and firmware
+combinations have not been verified for this fix.
+
+- [Earlier Latency2 test report](https://github.com/Noname233333/wampy/blob/f98eafdb4e08cbae33577e5043d6811848dd6996/docs/latency2/TEST_REPORT.md)
+- [Input handling change proposed upstream](https://github.com/unknown321/wampy/pull/82)
+- Clone this repository with `git clone --recurse-submodules https://github.com/Noname233333/wampy.git` for a source checkout with its pinned dependencies. GitHub's source ZIP omits submodule contents.
+
+This source snapshot is for development. The upstream installers linked below
+contain upstream Wampy. The compatibility table describes the upstream project.
+
 Interface addon for NW-A50 / ZX300 / WM1A / WM1Z series WALKMAN® players.
 
 Also works on Walkman One for [NW-A50][1] / [A40][2] / [A30][3] / [ZX300][4] / [WM1A/Z][5].
@@ -64,7 +86,7 @@ sure you have at least 100MB free on internal storage.
 
 ### Windows
 
-Download exe from [releases](https://github.com/unknown321/wampy/releases/latest), run and follow instructions. Make
+For upstream Wampy, download the exe from [upstream releases](https://github.com/unknown321/wampy/releases/latest), run and follow instructions. Make
 sure that your internal storage is named "WALKMAN":
 
 <img src="images/explorer.png">

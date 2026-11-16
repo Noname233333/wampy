@@ -73,8 +73,6 @@ namespace Hagoromo {
 
         void disableTouchscreen() const;
 
-        bool isOn() const;
-
         void TestCommand() override;
 
         bool WindowHidden();

@@ -135,7 +135,6 @@ namespace Cassette {
     }
 
     void Cassette::processUpdate() {
-        updateThreadRunning = true;
 
         bool c{};
         while (true) {
@@ -168,7 +167,6 @@ namespace Cassette {
             }
         }
 
-        updateThreadRunning = false;
         DLOG("update thread stopped\n");
     }
 
@@ -1030,7 +1028,6 @@ namespace Cassette {
 
     void Cassette::ReelLoop() {
         DLOG("start reel loop\n");
-        reelThreadRunning = true;
 
         int delay = REEL_DELAY_MS;
         for (;;) {
@@ -1073,7 +1070,6 @@ namespace Cassette {
             }
         }
 
-        reelThreadRunning = false;
         DLOG("reel thread stopped\n");
     }
 

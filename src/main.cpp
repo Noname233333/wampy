@@ -245,7 +245,7 @@ static void mouse_button_callback(GLFWwindow *window, int button, int action, in
 
 // used for profiling
 void my_handler(int s) {
-    render = false;
+    // The UI is paused here; RenderGate's mutex must not be used in a signal handler.
     sleep(1);
     DLOG("signal %d, exiting\n", s);
     exit(0);

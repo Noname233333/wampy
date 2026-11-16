@@ -170,26 +170,6 @@ namespace Hagoromo {
         close(tsfd);
     }
 
-    bool HagoromoConnector::isOn() const {
-        char data[5];
-        int brfd = open(brightnessPath, O_RDONLY);
-        if (brfd < 0) {
-            perror("cannot open brightness");
-            return false;
-        }
-
-        if (read(brfd, data, sizeof data) < 0) {
-            printf("failed to read from brightness");
-            return false;
-        }
-
-        if (data[0] == '0') {
-            return false;
-        }
-
-        return true;
-    }
-
     void HagoromoConnector::TestCommand() {
         auto c = Command::Command();
         c.set_type(Command::Type::CMD_TEST);

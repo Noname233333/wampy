@@ -201,8 +201,6 @@ namespace Winamp {
         bool MarqueeRunning{};
         std::atomic<bool> childThreadsStop{false};
         std::thread marqueeWorker, updateWorker;
-        bool marqueeThreadRunning{};
-        bool updateThreadRunning{};
 
         ImFont *FontBitmap{};
         ImFont *FontNumbers{};

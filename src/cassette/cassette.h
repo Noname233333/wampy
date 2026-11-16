@@ -96,8 +96,6 @@ namespace Cassette {
 
         std::atomic<bool> childThreadsStop{false};
         std::thread reelWorker, updateWorker;
-        bool reelThreadRunning{};
-        bool updateThreadRunning{};
 
         std::mutex statusUpdatedM;
         bool statusUpdated{}; // set when connector sends an update notification

@@ -81,7 +81,6 @@ namespace Winamp {
     }
 
     void Winamp::processUpdate() {
-        updateThreadRunning = true;
 
         for (;;) {
             std::this_thread::sleep_for(std::chrono::microseconds(50 * 1000));
@@ -108,7 +107,6 @@ namespace Winamp {
             Format();
         }
 
-        updateThreadRunning = false;
         DLOG("update thread stopped\n");
     }
 
@@ -1449,7 +1447,6 @@ namespace Winamp {
 
     void Winamp::MarqueeLoop() {
         MarqueeRunning = true;
-        marqueeThreadRunning = true;
 
         for (;;) {
             std::this_thread::sleep_for(std::chrono::microseconds(marqueeInterval));
@@ -1480,7 +1477,6 @@ namespace Winamp {
             MarqueeCalculate();
         }
 
-        marqueeThreadRunning = false;
         MarqueeRunning = false;
         DLOG("marquee thread stopped\n");
     }
